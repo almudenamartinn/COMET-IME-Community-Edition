@@ -510,6 +510,73 @@ namespace ProductTree.Tests
         }
 
         [Test]
+        public async Task VerifyEditElementDefinitionFromElementUsage()
+        {
+            var vm = new ProductTreeViewModel(this.option, this.session.Object, this.thingDialogNavigationService.Object, this.panelNavigationService.Object, this.dialogNavigationService.Object, null);
+            await this.DelayedCheck(() => vm.SingleRunBackgroundWorker == null);
+
+            var usedDefinition = new ElementDefinition(Guid.NewGuid(), this.assembler.Cache, this.uri) { Container = this.iteration, Name = "Battery" };
+
+            var elementUsage = new ElementUsage(Guid.NewGuid(), this.assembler.Cache, this.uri)
+            {
+                Container = this.elementDef,
+                ElementDefinition = usedDefinition
+            };
+
+            var usageRow = new ElementUsageRowViewModel(elementUsage, this.option, this.session.Object, null);
+
+            vm.SelectedThing = usageRow;
+
+            Assert.IsTrue(vm.CanEditElementDefinition);
+            Assert.IsTrue(((ICommand)vm.EditElementDefinitionCommand).CanExecute(null));
+
+            vm.PopulateContextMenu();
+            Assert.That(vm.ContextMenu.Select(x => x.Header), Contains.Item("Edit Element Definition"));
+
+            await vm.EditElementDefinitionCommand.Execute();
+
+            this.thingDialogNavigationService.Verify(
+                x => x.Navigate(
+                    It.Is<ElementDefinition>(ed => ed.Iid == usedDefinition.Iid),
+                    It.IsAny<IThingTransaction>(),
+                    this.session.Object,
+                    true,
+                    ThingDialogKind.Update,
+                    this.thingDialogNavigationService.Object,
+                    It.IsAny<Thing>(),
+                    null),
+                Times.Once);
+        }
+
+        [Test]
+        public async Task VerifyEditElementDefinitionIsNotAvailableWithoutPermissionOrForOtherRows()
+        {
+            var vm = new ProductTreeViewModel(this.option, this.session.Object, this.thingDialogNavigationService.Object, this.panelNavigationService.Object, this.dialogNavigationService.Object, null);
+            await this.DelayedCheck(() => vm.SingleRunBackgroundWorker == null);
+
+            vm.SelectedThing = vm.TopElement.Single();
+            vm.PopulateContextMenu();
+
+            Assert.IsFalse(vm.CanEditElementDefinition);
+            Assert.That(vm.ContextMenu.Select(x => x.Header), Has.No.Member("Edit Element Definition"));
+
+            var usedDefinition = new ElementDefinition(Guid.NewGuid(), this.assembler.Cache, this.uri) { Container = this.iteration };
+
+            var elementUsage = new ElementUsage(Guid.NewGuid(), this.assembler.Cache, this.uri)
+            {
+                Container = this.elementDef,
+                ElementDefinition = usedDefinition
+            };
+
+            this.permissionService.Setup(x => x.CanWrite(usedDefinition)).Returns(false);
+
+            vm.SelectedThing = new ElementUsageRowViewModel(elementUsage, this.option, this.session.Object, null);
+
+            Assert.IsFalse(vm.CanEditElementDefinition);
+            Assert.IsFalse(((ICommand)vm.EditElementDefinitionCommand).CanExecute(null));
+        }
+
+        [Test]
         public async Task VerifyToggleNamesAndShortNames()
         {
             var vm = new ProductTreeViewModel(this.option, this.session.Object, this.thingDialogNavigationService.Object, this.panelNavigationService.Object, this.dialogNavigationService.Object, null);

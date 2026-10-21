@@ -115,6 +115,11 @@ namespace CDP4ProductTree.ViewModels
         private bool canCreateOverride;
 
         /// <summary>
+        /// Backing field for <see cref="CanEditElementDefinition"/>
+        /// </summary>
+        private bool canEditElementDefinition;
+
+        /// <summary>
         /// The Panel Caption
         /// </summary>
         private const string PanelCaption = "Product Tree";
@@ -278,6 +283,20 @@ namespace CDP4ProductTree.ViewModels
         public ReactiveCommand<Unit, Unit> CreateOverrideCommand { get; private set; }
 
         /// <summary>
+        /// Gets a value indicating whether the <see cref="ElementDefinition"/> of the selected <see cref="ElementUsage"/> can be edited
+        /// </summary>
+        public bool CanEditElementDefinition
+        {
+            get => this.canEditElementDefinition;
+            private set => this.RaiseAndSetIfChanged(ref this.canEditElementDefinition, value);
+        }
+
+        /// <summary>
+        /// Gets the <see cref="ReactiveCommand"/> to edit the <see cref="ElementDefinition"/> of the selected <see cref="ElementUsage"/>
+        /// </summary>
+        public ReactiveCommand<Unit, Unit> EditElementDefinitionCommand { get; private set; }
+
+        /// <summary>
         /// Gets the Top <see cref="ElementDefinition"/> for this <see cref="Option"/>
         /// </summary>
         /// <remarks>
@@ -377,6 +396,8 @@ namespace CDP4ProductTree.ViewModels
             this.CreateOverrideCommand = ReactiveCommandCreator.CreateAsyncTask(this.ExecuteCreateParameterOverride, this.WhenAnyValue(vm => vm.CanCreateOverride));
 
             this.ToggleUsageNamesCommand = ReactiveCommandCreator.Create(this.ToggleDisplayShortNamesOn);
+
+            this.EditElementDefinitionCommand = ReactiveCommandCreator.Create(this.ExecuteEditElementDefinitionCommand, this.WhenAnyValue(vm => vm.CanEditElementDefinition));
         }
 
         /// <summary>
@@ -411,6 +432,9 @@ namespace CDP4ProductTree.ViewModels
             base.ComputePermission();
 
             this.CanCreateParameterGroup = this.PermissionService.CanWrite(ClassKind.ParameterGroup, this.Thing);
+
+            this.CanEditElementDefinition = this.SelectedThing is ElementUsageRowViewModel elementUsageRow
+                                            && this.PermissionService.CanWrite(elementUsageRow.Thing.ElementDefinition);
 
             var parameterOrOverrideRow = this.SelectedThing as ParameterOrOverrideBaseRowViewModel;
 
@@ -454,6 +478,11 @@ namespace CDP4ProductTree.ViewModels
             if (this.SelectedThing is ElementDefinitionRowViewModel || this.SelectedThing is ParameterGroupRowViewModel)
             {
                 this.ContextMenu.Add(new ContextMenuItemViewModel("Create a Parameter Group", "", this.CreateParameterGroup, MenuItemKind.Create, ClassKind.ParameterGroup));
+            }
+
+            if (this.SelectedThing is ElementUsageRowViewModel)
+            {
+                this.ContextMenu.Add(new ContextMenuItemViewModel("Edit Element Definition", "", this.EditElementDefinitionCommand, MenuItemKind.Edit, ClassKind.ElementDefinition));
             }
 
             if (this.SelectedThing is IHavePath)
@@ -612,6 +641,17 @@ namespace CDP4ProductTree.ViewModels
 
             var currentDomainOfExpertise = this.Session.QuerySelectedDomainOfExpertise((Iteration)this.Thing.Container);
             this.DomainOfExpertise = currentDomainOfExpertise == null ? "None" : $"{currentDomainOfExpertise.Name} [{currentDomainOfExpertise.ShortName}]";
+        }
+
+        /// <summary>
+        /// Execute the <see cref="EditElementDefinitionCommand"/>
+        /// </summary>
+        private void ExecuteEditElementDefinitionCommand()
+        {
+            if (this.SelectedThing is ElementUsageRowViewModel elementUsageRow)
+            {
+                this.ExecuteUpdateCommand(elementUsageRow.Thing.ElementDefinition);
+            }
         }
 
         /// <summary>
